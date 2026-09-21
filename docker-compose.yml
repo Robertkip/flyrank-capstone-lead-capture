@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-leadcapture}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-leadcapture}
+      POSTGRES_DB: ${POSTGRES_DB:-leadcapture}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-leadcapture}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Local mail catcher: proves the email side effect without any paid service.
+  # UI at http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+    environment:
+      MP_SMTP_BIND_ADDR: "0.0.0.0:1025"
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "${API_PORT:-8000}:8000"
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - .:/app
+
+  # The 'customer website' — a plain HTML page on a DIFFERENT ORIGIN
+  # (localhost:5500) than the API (localhost:8000). That is the whole point.
+  testsite:
+    image: python:3.12-slim
+    working_dir: /site
+    command: python -m http.server 5500
+    ports:
+      - "${TESTSITE_PORT:-5500}:5500"
+    volumes:
+      - ./testsite:/site:ro
+
+volumes:
+  pgdata:

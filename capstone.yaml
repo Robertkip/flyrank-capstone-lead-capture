@@ -1,0 +1,70 @@
+# Manifest read by the FlyRank capstone evaluator.
+name: flyrank-capstone-widget-platform
+track: backend
+capstone: Embeddable Widget & Lead-Capture Platform
+language: python
+framework: fastapi
+
+# One command boots the whole system: API, Postgres, Mailpit, and the
+# second-origin "customer site". Migrations run before the server starts.
+run: docker compose up -d
+
+# Verifies the four host ports are free first. Docker aborts the whole stack
+# over a single conflict, so this turns a cryptic failure into one clear line.
+preflight: ./scripts/preflight.sh
+
+# Two demo tenants, three widgets, a few submissions. Prints the embed snippets.
+seed: docker compose exec -T api python scripts/seed.py
+
+# 79 deterministic tests. The test database must exist first:
+#   docker compose exec -T db psql -U leadcapture -d postgres -c "CREATE DATABASE leadcapture_test;"
+test: docker compose exec -T api pytest -q
+
+base_url: http://localhost:8000
+
+# The six acceptance probes from Section 13, as an executable transcript.
+probes: ./scripts/probes.sh
+
+endpoints:
+  health:
+    - GET /healthz
+    - GET /readyz
+
+  auth:
+    - POST /api/auth/register
+    - POST /api/auth/login
+    - GET  /api/auth/me
+
+  widget_management:            # authenticated, tenant-isolated
+    - POST   /api/widgets
+    - GET    /api/widgets
+    - GET    /api/widgets/{widget_id}
+    - PATCH  /api/widgets/{widget_id}
+    - DELETE /api/widgets/{widget_id}
+    - GET    /api/widgets/{widget_id}/embed
+
+  widget_delivery:              # public, cached, cross-origin
+    - GET /embed/widget.v1.js
+    - GET /api/public/widgets/{public_id}/config
+
+  public_submission:            # public, CORS, rate limited, spam filtered
+    - OPTIONS /api/public/submissions
+    - POST    /api/public/submissions
+
+  dashboard:                    # authenticated, tenant-isolated
+    - GET /api/dashboard/summary
+    - GET /api/dashboard/submissions
+    - GET /api/dashboard/widgets/{widget_id}/stats
+
+# Ports the stack binds (override in .env if any are taken locally).
+ports:
+  api: 8000
+  customer_site: 5500
+  mailpit_ui: 8025
+  postgres: 5433
+
+# Flags the evaluator can flip to reproduce probes 4 and 5.
+behaviour_toggles:
+  geo_provider_a_down: GEO_MOCK_A_UP=false
+  geo_provider_b_down: GEO_MOCK_B_UP=false
+  side_effect_always_fails: SIDE_EFFECT_FORCE_FAIL=true

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Northwind Coffee — a "customer website"</title>
+<style>
+  :root { color-scheme: light; }
+  body {
+    margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: #f8fafc; color: #0f172a; line-height: 1.55;
+  }
+  .wrap { max-width: 54rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+  header { border-bottom: 1px solid #e2e8f0; padding-bottom: 1.25rem; margin-bottom: 2rem; }
+  h1 { margin: 0 0 .25rem; font-size: 1.6rem; }
+  .sub { color: #64748b; font-size: .9rem; margin: 0; }
+  .banner {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: .6rem;
+    padding: .9rem 1rem; font-size: .85rem; margin-bottom: 2rem;
+  }
+  .banner code { background: #dbeafe; padding: .1rem .3rem; border-radius: .25rem; }
+  .cols { display: grid; gap: 2rem; grid-template-columns: 1fr; }
+  @media (min-width: 800px) { .cols { grid-template-columns: 1.1fr 1fr; } }
+  article p { color: #334155; }
+  .panel {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: .75rem; padding: 1.25rem;
+  }
+  .panel h2 { margin: 0 0 .75rem; font-size: .95rem; }
+  label { display: block; font-size: .78rem; font-weight: 600; margin-bottom: .3rem; }
+  input[type=text] {
+    width: 100%; padding: .5rem .6rem; border: 1px solid #cbd5e1;
+    border-radius: .4rem; font-size: .85rem; box-sizing: border-box;
+  }
+  button.load {
+    margin-top: .75rem; padding: .5rem .9rem; border: 0; border-radius: .4rem;
+    background: #0f172a; color: #fff; font-size: .85rem; font-weight: 600; cursor: pointer;
+  }
+  .origin-note { font-size: .78rem; color: #64748b; margin-top: 1rem; }
+  .origin-note strong { color: #0f172a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Northwind Coffee</h1>
+    <p class="sub">A pretend customer website. Nothing here belongs to the platform.</p>
+  </header>
+
+  <div class="banner">
+    This page is served from <code id="page-origin"></code> while the API runs on
+    <code id="api-origin">http://localhost:8000</code> — <strong>two different origins</strong>.
+    Every request the widget makes below is therefore cross-origin, and only works because
+    the API answers the preflight and sends the right CORS headers.
+  </div>
+
+  <div class="cols">
+    <article>
+      <h2>Single-origin coffee, roasted weekly</h2>
+      <p>
+        We roast in small batches every Tuesday and ship the same afternoon. Our current
+        rotation features a washed Ethiopian with notes of bergamot and stone fruit, and a
+        natural Colombian that leans into cocoa and dried cherry.
+      </p>
+      <p>
+        Everything on this page is ordinary static HTML. The signup form below arrived from
+        somewhere else entirely — one <code>&lt;script&gt;</code> tag pulled it in, rendered it,
+        and wired it to an API this page knows nothing about.
+      </p>
+
+      <div class="panel" style="margin-top:1.5rem">
+        <h2>Load a widget</h2>
+        <label for="widget-id">Widget public id (from the seed script output)</label>
+        <input type="text" id="widget-id" placeholder="e.g. 4f1c2a9b8e7d6c5a" autocomplete="off">
+        <button class="load" id="load-btn">Load widget</button>
+        <p class="origin-note">
+          Or append <strong>?id=YOUR_PUBLIC_ID</strong> to this page's URL to load it automatically.
+        </p>
+      </div>
+    </article>
+
+    <aside>
+      <div id="lead-capture-widget"></div>
+    </aside>
+  </div>
+</div>
+
+<script>
+  // The API origin. Change this if you run the API somewhere else.
+  var API_ORIGIN = "http://localhost:8000";
+  var BUNDLE_VERSION = "v1";
+
+  document.getElementById("page-origin").textContent = window.location.origin || "file://";
+  document.getElementById("api-origin").textContent = API_ORIGIN;
+
+  function loadWidget(id) {
+    if (!id) return;
+    var mount = document.getElementById("lead-capture-widget");
+    mount.innerHTML = "";
+    // Remove any previously loaded bundle so re-loading actually re-runs it.
+    document.querySelectorAll("script[data-lcw]").forEach(function (s) { s.remove(); });
+    delete window.__leadCaptureWidget;
+
+    var script = document.createElement("script");
+    script.src = API_ORIGIN + "/embed/widget." + BUNDLE_VERSION + ".js?id=" + encodeURIComponent(id);
+    script.async = true;
+    script.setAttribute("data-lcw", "1");
+    document.body.appendChild(script);
+
+    var url = new URL(window.location.href);
+    url.searchParams.set("id", id);
+    history.replaceState({}, "", url);
+  }
+
+  document.getElementById("load-btn").addEventListener("click", function () {
+    loadWidget(document.getElementById("widget-id").value.trim());
+  });
+
+  var preset = new URLSearchParams(window.location.search).get("id");
+  if (preset) {
+    document.getElementById("widget-id").value = preset;
+    loadWidget(preset);
+  }
+</script>
+</body>
+</html>
